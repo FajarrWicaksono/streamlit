@@ -4,7 +4,6 @@ requests
 wordcloud
 beautifulsoup4
 pymongo
-nltk
 Sastrawi
 pandas
 matplotlib
