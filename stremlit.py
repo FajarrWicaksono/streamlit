@@ -14,9 +14,13 @@ import nltk
 import pandas as pd
 import matplotlib.pyplot as plt
 
-nltk.download('punkt')
+# Cek dan download punkt jika belum tersedia
+try:
+    nltk.data.find("tokenizers/punkt")
+except LookupError:
+    nltk.download("punkt")
 
-# MongoDB Atlas URI (ganti dengan milikmu)
+# MongoDB Atlas URI (Ganti username & password dengan milikmu)
 MONGO_URI = "mongodb+srv://<db_username>:<db_password>@cluster0.sy9m5us.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
 custom_stopwords = [
@@ -56,7 +60,6 @@ def crawl_article(url):
         st.write(f"[ERROR] Gagal crawling artikel: {e}")
         return None
 
-# 1. Crawl Kompasiana tanpa Selenium
 def crawl_kompasiana():
     st.write(f"\U0001F680 Crawling Kompasiana: {datetime.now()}")
     try:
@@ -76,7 +79,6 @@ def crawl_kompasiana():
     except Exception as e:
         st.error(f"❌ Gagal crawl Kompasiana: {e}")
 
-# 2. Crawl Detik Health tanpa Selenium
 def crawl_detik():
     st.write(f"\U0001F680 Crawling Detik Health: {datetime.now()}")
     try:
@@ -94,7 +96,6 @@ def crawl_detik():
     except Exception as e:
         st.error(f"❌ Gagal crawl Detik Health: {e}")
 
-# 3. Crawl Kompas Health tanpa Selenium
 def crawl_kompas():
     st.write(f"\U0001F680 Crawling Kompas Health: {datetime.now()}")
     try:
