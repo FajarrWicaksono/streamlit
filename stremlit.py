@@ -9,16 +9,8 @@ from pymongo import MongoClient
 from datetime import datetime
 from collections import Counter
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
-from nltk.tokenize import word_tokenize
-import nltk
 import pandas as pd
 import matplotlib.pyplot as plt
-
-# Cek dan unduh punkt tokenizer jika belum ada
-try:
-    nltk.data.find("tokenizers/punkt")
-except LookupError:
-    nltk.download("punkt")
 
 # MongoDB Atlas URI
 MONGO_URI = "mongodb+srv://fajarajah322:fajarajah@cluster0.sy9m5us.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
@@ -30,7 +22,7 @@ custom_stopwords = [
     "memberikan","kompasiana","komentar","selanjutnya","tersebut"
 ]
 
-# Fungsi MongoDB
+# Koneksi MongoDB
 def save_to_mongodb(data, db_name="artikel_db", collection_name="scraping"):
     client = MongoClient(MONGO_URI)
     db = client[db_name]
@@ -125,7 +117,7 @@ def run_schedule():
         schedule.run_pending()
         time.sleep(1)
 
-# Preprocessing
+# PREPROCESSING (PAKAI .split() SAJA)
 def preprocess_text_list(text_list):
     factory = StopWordRemoverFactory()
     default_stopwords = factory.get_stop_words()
@@ -133,7 +125,7 @@ def preprocess_text_list(text_list):
 
     data_casefolding = pd.Series([text.lower() for text in text_list])
     filtering = data_casefolding.str.replace(r'[\W_]+', ' ', regex=True)
-    data_tokens = [word_tokenize(line) for line in filtering]
+    data_tokens = [line.split() for line in filtering]  # Ganti tokenizer
 
     def stopword_filter(line):
         return [word for word in line if word not in stopword_list]
@@ -141,7 +133,7 @@ def preprocess_text_list(text_list):
     data_stopremoved = [stopword_filter(tokens) for tokens in data_tokens]
     return data_stopremoved
 
-# UI
+# STREAMLIT APP
 st.title("Auto Crawler + Analisis Artikel Kesehatan")
 st.write("Crawling artikel dari berbagai sumber dan analisis kata yang sering muncul.")
 
@@ -157,6 +149,7 @@ if st.sidebar.button("Aktifkan Jadwal"):
 if st.sidebar.button("Jalankan Sekarang"):
     run_all_crawlers()
 
+# ANALISIS KATA
 st.header("Analisis Kata Paling Sering Muncul")
 articles = load_articles_from_mongodb()
 st.write(f"Total artikel di database: {len(articles)}")
@@ -164,13 +157,6 @@ contents = [a['content'] for a in articles if 'content' in a]
 
 if contents:
     st.info("Melakukan preprocessing dan analisis...")
-
-    # Fallback download punkt jika gagal
-    try:
-        nltk.data.find("tokenizers/punkt")
-    except LookupError:
-        nltk.download("punkt")
-
     processed_tokens_list = preprocess_text_list(contents)
     all_tokens = [token for tokens in processed_tokens_list for token in tokens]
     word_counts = Counter(all_tokens)
