@@ -4,12 +4,6 @@ import threading
 import time
 import requests
 from wordcloud import WordCloud
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import NoSuchElementException
-from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 from pymongo import MongoClient
 from datetime import datetime
@@ -20,7 +14,11 @@ import nltk
 import pandas as pd
 import matplotlib.pyplot as plt
 
-nltk.download('punkt')
+# Cek dan unduh punkt tokenizer jika belum ada
+try:
+    nltk.data.find("tokenizers/punkt")
+except LookupError:
+    nltk.download("punkt")
 
 # MongoDB Atlas URI
 MONGO_URI = "mongodb+srv://fajarajah322:fajarajah@cluster0.sy9m5us.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
@@ -32,7 +30,7 @@ custom_stopwords = [
     "memberikan","kompasiana","komentar","selanjutnya","tersebut"
 ]
 
-# Fungsi koneksi MongoDB
+# Fungsi MongoDB
 def save_to_mongodb(data, db_name="artikel_db", collection_name="scraping"):
     client = MongoClient(MONGO_URI)
     db = client[db_name]
@@ -51,6 +49,7 @@ def load_articles_from_mongodb(db_name="artikel_db", collection_name="scraping")
     collection = db[collection_name]
     return list(collection.find())
 
+# Crawling
 def crawl_article(url):
     try:
         response = requests.get(url, timeout=10)
@@ -63,76 +62,59 @@ def crawl_article(url):
         st.write(f"[ERROR] Gagal crawling artikel: {e}")
         return None
 
-def setup_driver():
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--disable-gpu")
-    return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-
-# 1. Kompasiana
 def crawl_kompasiana():
     st.write(f"\U0001F680 Crawling Kompasiana: {datetime.now()}")
-    driver = setup_driver()
-    driver.get("https://www.kompasiana.com/tag/postur")
-    time.sleep(2)
+    try:
+        url = "https://www.kompasiana.com/tag/postur"
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, "html.parser")
+        articles = soup.find_all("div", class_="timeline--item")
 
-    for _ in range(5):
-        try:
-            load_more = driver.find_element(By.ID, "load-more-index-tag")
-            driver.execute_script("arguments[0].click();", load_more)
-            time.sleep(2)
-        except:
-            break
+        for item in articles:
+            content_div = item.find("div", class_="artikel--content")
+            if content_div:
+                a_tag = content_div.find("a")
+                if a_tag and a_tag["href"]:
+                    detail = crawl_article(a_tag["href"])
+                    if detail:
+                        save_to_mongodb(detail)
+    except Exception as e:
+        st.error(f"❌ Gagal crawl Kompasiana: {e}")
 
-    soup = BeautifulSoup(driver.page_source, "html.parser")
-    articles = soup.find_all("div", class_="timeline--item")
+def crawl_detik():
+    st.write(f"\U0001F680 Crawling Detik Health: {datetime.now()}")
+    try:
+        url = "https://health.detik.com/berita-detikhealth"
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        articles = soup.find_all("article")
 
-    for item in articles:
-        content_div = item.find("div", class_="artikel--content")
-        if content_div:
-            a_tag = content_div.find("a")
+        for article in articles:
+            a_tag = article.find("a")
             if a_tag and a_tag["href"]:
                 detail = crawl_article(a_tag["href"])
                 if detail:
                     save_to_mongodb(detail)
+    except Exception as e:
+        st.error(f"❌ Gagal crawl Detik Health: {e}")
 
-    driver.quit()
-
-# 2. Detik Health
-def crawl_detik():
-    st.write(f"\U0001F680 Crawling Detik Health: {datetime.now()}")
-    driver = setup_driver()
-    driver.get("https://health.detik.com/berita-detikhealth")
-    time.sleep(2)
-
-    soup = BeautifulSoup(driver.page_source, "html.parser")
-    articles = soup.find_all("article")
-
-    for article in articles:
-        a_tag = article.find("a")
-        if a_tag and a_tag["href"]:
-            detail = crawl_article(a_tag["href"])
-            if detail:
-                save_to_mongodb(detail)
-
-    driver.quit()
-
-# 3. Kompas Health
 def crawl_kompas():
     st.write(f"\U0001F680 Crawling Kompas Health: {datetime.now()}")
-    url = "https://health.kompas.com"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    articles = soup.find_all("a", class_="article__link")
+    try:
+        url = "https://health.kompas.com"
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        articles = soup.find_all("a", class_="article__link")
 
-    for a_tag in articles:
-        link = a_tag.get("href")
-        if link and link.startswith("https://"):
-            detail = crawl_article(link)
-            if detail:
-                save_to_mongodb(detail)
+        for a_tag in articles:
+            link = a_tag.get("href")
+            if link and link.startswith("https://"):
+                detail = crawl_article(link)
+                if detail:
+                    save_to_mongodb(detail)
+    except Exception as e:
+        st.error(f"❌ Gagal crawl Kompas Health: {e}")
 
-# Jalankan semua
 def run_all_crawlers():
     crawl_kompasiana()
     crawl_detik()
@@ -159,19 +141,7 @@ def preprocess_text_list(text_list):
     data_stopremoved = [stopword_filter(tokens) for tokens in data_tokens]
     return data_stopremoved
 
-def plot_top_words_line(top_words):
-    words, counts = zip(*top_words)
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(words, counts, color='black', marker='o', linewidth=2)
-    ax.set_xlabel("Kata")
-    ax.set_ylabel("Frekuensi")
-    ax.set_title("10 Kata Paling Sering Muncul (Line Chart)")
-    plt.xticks(rotation=45)
-    plt.grid(True)
-    plt.tight_layout()
-    return fig
-
-# Streamlit App UI
+# UI
 st.title("Auto Crawler + Analisis Artikel Kesehatan")
 st.write("Crawling artikel dari berbagai sumber dan analisis kata yang sering muncul.")
 
@@ -187,7 +157,6 @@ if st.sidebar.button("Aktifkan Jadwal"):
 if st.sidebar.button("Jalankan Sekarang"):
     run_all_crawlers()
 
-# Analisis Kata
 st.header("Analisis Kata Paling Sering Muncul")
 articles = load_articles_from_mongodb()
 st.write(f"Total artikel di database: {len(articles)}")
@@ -195,6 +164,13 @@ contents = [a['content'] for a in articles if 'content' in a]
 
 if contents:
     st.info("Melakukan preprocessing dan analisis...")
+
+    # Fallback download punkt jika gagal
+    try:
+        nltk.data.find("tokenizers/punkt")
+    except LookupError:
+        nltk.download("punkt")
+
     processed_tokens_list = preprocess_text_list(contents)
     all_tokens = [token for tokens in processed_tokens_list for token in tokens]
     word_counts = Counter(all_tokens)
@@ -203,7 +179,6 @@ if contents:
     st.subheader("Top 10 Kata")
     st.write(top_words)
 
-    # Visualisasi 1: Line Chart Artikel per Hari
     st.subheader("Line Chart: Jumlah Artikel per Hari")
     dates = [a.get('timestamp', a.get('_id').generation_time).date() for a in articles]
     date_counts = pd.Series(dates).value_counts().sort_index()
@@ -215,7 +190,6 @@ if contents:
     ax_date.grid(True)
     st.pyplot(fig_date)
 
-    # Visualisasi 2: Grafik Batang Top 10 Kata
     st.subheader("Bar Chart: Top 10 Kata")
     fig_bar, ax_bar = plt.subplots(figsize=(10, 5))
     words, counts = zip(*top_words)
@@ -227,7 +201,6 @@ if contents:
     plt.tight_layout()
     st.pyplot(fig_bar)
 
-    # Visualisasi 3: Word Cloud
     st.subheader("Word Cloud dari Seluruh Kata")
     wordcloud = WordCloud(width=800, height=400, background_color='white').generate_from_frequencies(word_counts)
     fig_wc, ax_wc = plt.subplots(figsize=(10, 5))
