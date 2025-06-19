@@ -13,7 +13,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # MongoDB Atlas URI
-MONGO_URI = "mongodb+srv://fajarajah322:fajarajah@cluster0.sy9m5us.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+MONGO_URI = "mongodb+srv://fajarajah322:fajar320@cluster0.sy9m5us.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
 custom_stopwords = [
     "menjadi", "lebih", "banyak", "memiliki", "dapat", "akan", "dengan",
