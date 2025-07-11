@@ -49,7 +49,16 @@ def crawl_article(url):
         title = soup.find('h1').text if soup.find('h1') else 'No Title'
         paragraphs = soup.find_all('p')
         content = "\n".join([p.text for p in paragraphs])
-        return {'url': url, 'title': title, 'content': content}
+        image_url = ""
+        og_image = soup.find("meta", property="og:image")
+        if og_image and og_image.get("content"):
+            image_url = og_image["content"]
+        else:
+            first_img = soup.find("img")
+            if first_img and first_img.get("src"):
+                image_url = first_img["src"]
+
+        return {'url': url, 'title': title, 'content': content, 'image_url': image_url}
     except Exception as e:
         st.write(f"[ERROR] Gagal crawling artikel: {e}")
         return None
