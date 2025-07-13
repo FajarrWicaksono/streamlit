@@ -24,15 +24,19 @@ custom_stopwords = [
 
 # Koneksi MongoDB
 def save_to_mongodb(data, db_name="artikel_db", collection_name="scraping"):
-    client = MongoClient(MONGO_URI)
-    db = client[db_name]
-    collection = db[collection_name]
-    if collection.count_documents({"url": data["url"]}) == 0:
-        collection.insert_one(data)
-        st.write(f"[\u2713] Disimpan: {data['title']}")
-        return True
-    else:
-        st.write(f"[=] Sudah ada: {data['title']}")
+    try:
+        client = MongoClient(MONGO_URI)
+        db = client[db_name]
+        collection = db[collection_name]
+        if collection.count_documents({"url": data["url"]}) == 0:
+            collection.insert_one(data)
+            st.write(f"✅ Disimpan: {data['title']}")
+            return True
+        else:
+            st.write(f"= Sudah ada: {data['title']}")
+            return False
+    except Exception as e:
+        st.error(f"❌ Error simpan ke MongoDB: {e}")
         return False
 
 def load_articles_from_mongodb(db_name="artikel_db", collection_name="scraping"):
@@ -46,9 +50,13 @@ def crawl_article(url):
     try:
         response = requests.get(url, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
-        title = soup.find('h1').text if soup.find('h1') else 'No Title'
+
+        title_tag = soup.find('h1')
+        title = title_tag.get_text(strip=True) if title_tag else 'No Title'
+
         paragraphs = soup.find_all('p')
-        content = "\n".join([p.text for p in paragraphs])
+        content = "\n".join([p.get_text(strip=True) for p in paragraphs])
+
         image_url = ""
         og_image = soup.find("meta", property="og:image")
         if og_image and og_image.get("content"):
@@ -58,9 +66,15 @@ def crawl_article(url):
             if first_img and first_img.get("src"):
                 image_url = first_img["src"]
 
-        return {'url': url, 'title': title, 'content': content, 'image_url': image_url}
+        return {
+            'url': url,
+            'title': title,
+            'content': content,
+            'image_url': image_url
+        }
+
     except Exception as e:
-        st.write(f"[ERROR] Gagal crawling artikel: {e}")
+        st.error(f"❌ Error crawling artikel: {e}")
         return None
 
 def crawl_kompasiana():
